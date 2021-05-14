@@ -2,6 +2,9 @@
 //!
 //! Performs a velocity-verlet integration of particles in a harmonic trap.
 
+extern crate bevy_bench as lib;
+use lib::{PARTICLE_NUMBER,STEP_NUMBER};
+
 extern crate specs;
 use specs::prelude::*;
 
@@ -107,20 +110,12 @@ fn main() {
     builder.add(HarmonicForceSystem, "harmonic", &["integrate_position"]);
     builder.add(IntegrateVelocitySystem, "integrate_velocity", &["harmonic"]);
 
-    //// Configure pool if you like:
-    ////
-    // let pool = rayon::ThreadPoolBuilder::new()
-    //     .num_threads(6)
-    //     .build()
-    //     .unwrap();
-    // builder.add_pool(::std::sync::Arc::new(pool));
-
     let mut dispatcher = builder.build();
     dispatcher.setup(&mut world);
 
     world.insert(Timestep { dt: 1.0 });
 
-    for _ in 0..100_000 {
+    for _ in 0..PARTICLE_NUMBER {
         world
             .create_entity()
             .with(Position {
@@ -142,7 +137,7 @@ fn main() {
     }
 
     println!("Starting simulation.");
-    for _ in 0..1_000 {
+    for _ in 0..STEP_NUMBER {
         dispatcher.dispatch(&mut world);
         world.maintain();
     }
