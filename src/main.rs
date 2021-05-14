@@ -40,9 +40,15 @@ fn integrate_velocity(
     });
 }
 
+fn harmonic_trap(pool: Res<ComputeTaskPool>, mut query: Query<(&mut Force, &Position)>) {
+    query.par_for_each_mut(&pool, 32, |(mut force, pos)| {
+        force.0 = -pos.0;
+    });
+}
+
 fn spawn_atoms(mut commands: Commands) {
     // Add some atoms
-    for _ in 1..10_000 {
+    for _ in 1..100_000 {
         commands.spawn().insert_bundle((
             Position {
                 0: Vector3::new(0.0, 0.0, 0.0),
@@ -50,25 +56,45 @@ fn spawn_atoms(mut commands: Commands) {
             Velocity {
                 0: Vector3::new(0.2, 0.5, 1.0),
             },
+            Mass { 0: 1.0 },
+            Force {
+                0: Vector3::new(0.0, 0.0, 0.0),
+            },
+            OldForce {
+                0: Force {
+                    0: Vector3::new(0.0, 0.0, 0.0),
+                },
+            },
         ));
     }
 }
 
-fn harmonic_trap(pool: Res<ComputeTaskPool>, mut query: Query<(&mut Force, &Position)>) {
-    query.par_for_each_mut(&pool, 32, |(mut force, pos)| {
-        force.0 = -pos.0;
-    });
-}
-
 fn simple_runner(mut app: App) {
     println!("Starting simulation.");
-    for _ in 1..10_000 {
+    for _ in 1..1_000 {
         app.update();
     }
     println!("Finished!");
 }
 
 fn main() {
+    let mut pool = DefaultTaskPoolOptions::default();
+    // pool.io = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+    //     min_threads: 0,
+    //     max_threads: 0,
+    //     percent: 0.0,
+    // };
+    // pool.async_compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+    //     min_threads: 0,
+    //     max_threads: 12,
+    //     percent: 1.0,
+    // };
+    // pool.compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+    //     min_threads: 1,
+    //     max_threads: 1,
+    //     percent: 0.1,
+    // };
+
     App::build()
         .insert_resource(Timestep { dt: 0.01 })
         .add_system(integrate_position.system())
@@ -76,5 +102,6 @@ fn main() {
         .add_system(integrate_velocity.system())
         .add_startup_system(spawn_atoms.system())
         .set_runner(simple_runner)
+        .insert_resource(pool)
         .run();
 }
