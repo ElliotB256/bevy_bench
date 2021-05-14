@@ -3,25 +3,33 @@ extern crate bevy;
 use bevy::app::App;
 use bevy::prelude::*;
 
-pub struct Position {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-pub struct Velocity {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
+extern crate nalgebra;
+use nalgebra::Vector3;
+
+pub struct Position(Vector3<f64>);
+pub struct Velocity(Vector3<f64>);
+#[derive(Copy,Clone)]
+pub struct Force(Vector3<f64>);
+pub struct OldForce(Force);
+pub struct Mass(f64);
+
 pub struct Timestep {
     pub dt: f64,
 }
 
-fn integrate_position(mut query: Query<(&Velocity, &mut Position)>, timestep: Res<Timestep>) {
-    for (velocity, mut position) in query.iter_mut() {
-        position.x = position.x + velocity.x * timestep.dt;
-        position.y = position.y + velocity.y * timestep.dt;
-        position.z = position.z + velocity.z * timestep.dt;
+fn integrate_position(mut query: Query<(&Velocity, &Mass, &Force, &mut Position, &mut OldForce)>, timestep: Res<Timestep>) {
+    let dt = timestep.dt;
+    for (vel, mass, force, mut pos, mut old_force) in query.iter_mut() {
+        pos.0 = pos.0 + vel.0 * dt + force.0 / (mass.0) / 2.0 * dt * dt;
+		old_force.0 = *force;
+    }
+}
+
+fn integrate_velocity(mut query: Query<(&mut Velocity, &Force, &OldForce, &Mass)>, timestep: Res<Timestep>) {
+    let dt = timestep.dt;
+    for (mut vel, force, old_force, mass) in query.iter_mut() {
+    vel.0 = vel.0
+    + (force.0 + old_force.0.0) / (mass.0) / 2.0 * dt;
     }
 }
 
@@ -30,16 +38,18 @@ fn spawn_atoms(mut commands: Commands) {
     for _ in 1..10_000 {
         commands.spawn().insert_bundle((
             Position {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
+                0: Vector3::new(0.0,0.0,0.0)
             },
             Velocity {
-                x: -1.0,
-                y: 1.0,
-                z: 1.0,
+                0: Vector3::new(0.2,0.5,1.0)
             },
         ));
+    }
+}
+
+fn harmonic_trap(mut query: Query<(&mut Force, &Position)>) {
+    for (mut force, pos) in query.iter_mut() {
+        force.0 = -pos.0;
     }
 }
 
@@ -51,11 +61,12 @@ fn simple_runner(mut app: App) {
     println!("Finished!");
 }
 
-
 fn main() {
     App::build()
         .insert_resource(Timestep { dt: 0.01 })
         .add_system(integrate_position.system())
+        .add_system(harmonic_trap.system())
+        .add_system(integrate_velocity.system())
         .add_startup_system(spawn_atoms.system())
         .set_runner(simple_runner)
         .run();

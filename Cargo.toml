@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 bevy = "0.5"
+nalgebra = "0.26"
 
 [profile.release]
 opt-level = 3
