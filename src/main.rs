@@ -79,24 +79,24 @@ fn simple_runner(mut app: App) {
 
 fn main() {
     let mut pool = DefaultTaskPoolOptions::default();
-    // pool.io = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
-    //     min_threads: 0,
-    //     max_threads: 0,
-    //     percent: 0.0,
-    // };
-    // pool.async_compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
-    //     min_threads: 0,
-    //     max_threads: 12,
-    //     percent: 1.0,
-    // };
-    // pool.compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
-    //     min_threads: 1,
-    //     max_threads: 1,
-    //     percent: 0.1,
-    // };
+    pool.io = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+        min_threads: 0,
+        max_threads: 0,
+        percent: 0.0,
+    };
+    pool.async_compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+        min_threads: 0,
+        max_threads: 12,
+        percent: 1.0,
+    };
+    pool.compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+        min_threads: 1,
+        max_threads: 1,
+        percent: 0.1,
+    };
 
     App::build()
-        .insert_resource(Timestep { dt: 0.01 })
+        .insert_resource(Timestep { dt: 1.0 })
         .add_system(integrate_position.system())
         .add_system(harmonic_trap.system())
         .add_system(integrate_velocity.system())
