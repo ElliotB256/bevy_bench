@@ -3,7 +3,6 @@
 //! Performs a velocity-verlet integration of particles in a harmonic trap.
 
 extern crate bevy_bench as lib;
-use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use bevy_tasks::{ComputeTaskPool, TaskPoolBuilder};
@@ -125,7 +124,10 @@ fn main() {
         dur
     };
 
-    let total: Duration = (0..5).map(|_| do_run()).sum();
-    println!("Total loop time: {:?}", total);
-    println!("Avg loop time: {:?}", total / 5)
+    //use std::time::Duration;
+    //let total: Duration = (0..5).map(|_| do_run()).sum();
+    //println!("Total loop time: {:?}", total);
+    //println!("Avg loop time: {:?}", total / 5)
+
+    println!("Loop time: {:?}", do_run());
 }
