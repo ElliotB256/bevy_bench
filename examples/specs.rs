@@ -3,7 +3,9 @@
 //! Performs a velocity-verlet integration of particles in a harmonic trap.
 
 extern crate bevy_bench as lib;
-use lib::{PARTICLE_NUMBER,STEP_NUMBER};
+use std::time::Duration;
+
+use lib::{PARTICLE_NUMBER, STEP_NUMBER};
 
 extern crate specs;
 use specs::prelude::*;
@@ -49,12 +51,12 @@ impl<'a> System<'a> for IntegratePositionSystem {
         ReadStorage<'a, Force>,
         WriteStorage<'a, Position>,
         WriteStorage<'a, OldForce>,
-        ReadExpect<'a, Timestep>
+        ReadExpect<'a, Timestep>,
     );
 
     fn run(&mut self, (vel, mass, force, mut pos, mut old_force, timestep): Self::SystemData) {
         use rayon::prelude::*;
-        
+
         let dt = timestep.dt;
 
         (&vel, &mass, &force, &mut pos, &mut old_force)
@@ -73,12 +75,12 @@ impl<'a> System<'a> for IntegrateVelocitySystem {
         ReadStorage<'a, Force>,
         ReadStorage<'a, OldForce>,
         ReadStorage<'a, Mass>,
-        ReadExpect<'a, Timestep>
+        ReadExpect<'a, Timestep>,
     );
 
     fn run(&mut self, (mut vel, force, old_force, mass, timestep): Self::SystemData) {
         use rayon::prelude::*;
-        
+
         let dt = timestep.dt;
 
         (&mut vel, &force, &old_force, &mass).par_join().for_each(
@@ -136,10 +138,19 @@ fn main() {
             .build();
     }
 
-    println!("Starting simulation.");
-    for _ in 0..STEP_NUMBER {
-        dispatcher.dispatch(&mut world);
-        world.maintain();
-    }
-    println!("Finished!");
+    let mut do_run = || {
+        println!("Starting simulation.");
+        let start = std::time::Instant::now();
+        for _ in 0..STEP_NUMBER {
+            dispatcher.dispatch(&mut world);
+            world.maintain();
+        }
+        let dur = std::time::Instant::now() - start;
+        println!("Finished in {:?}", dur);
+        dur
+    };
+
+    let total: Duration = (0..5).map(|_| do_run()).sum();
+    println!("Total time: {:?}", total);
+    println!("Avg: {:?}", total / 5)
 }

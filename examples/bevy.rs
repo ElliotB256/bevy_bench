@@ -3,12 +3,11 @@
 //! Performs a velocity-verlet integration of particles in a harmonic trap.
 
 extern crate bevy_bench as lib;
+use std::time::Duration;
+
+use bevy_ecs::prelude::*;
+use bevy_tasks::{ComputeTaskPool, TaskPoolBuilder};
 use lib::{PARTICLE_NUMBER, STEP_NUMBER};
-
-extern crate bevy;
-
-use bevy::app::App;
-use bevy::{prelude::*, tasks::prelude::*};
 
 extern crate nalgebra;
 use nalgebra::Vector3;
@@ -24,16 +23,22 @@ pub struct Timestep {
     pub dt: f64,
 }
 
+const BATCH_SIZE: usize = PARTICLE_NUMBER as usize / 8;
+
 fn integrate_position(
     pool: Res<ComputeTaskPool>,
     mut query: Query<(&Velocity, &Mass, &Force, &mut Position, &mut OldForce)>,
     timestep: Res<Timestep>,
 ) {
     let dt = timestep.dt;
-    query.par_for_each_mut(&pool, 32, |(vel, mass, force, mut pos, mut old_force)| {
-        pos.0 = pos.0 + vel.0 * dt + force.0 / (mass.0) / 2.0 * dt * dt;
-        old_force.0 = *force;
-    });
+    query.par_for_each_mut(
+        &pool,
+        BATCH_SIZE,
+        |(vel, mass, force, mut pos, mut old_force)| {
+            pos.0 = pos.0 + vel.0 * dt + force.0 / (mass.0) / 2.0 * dt * dt;
+            old_force.0 = *force;
+        },
+    );
 }
 
 fn integrate_velocity(
@@ -42,21 +47,36 @@ fn integrate_velocity(
     timestep: Res<Timestep>,
 ) {
     let dt = timestep.dt;
-    query.par_for_each_mut(&pool, 32, |(mut vel, force, old_force, mass)| {
+    query.par_for_each_mut(&pool, BATCH_SIZE, |(mut vel, force, old_force, mass)| {
         vel.0 = vel.0 + (force.0 + old_force.0 .0) / (mass.0) / 2.0 * dt;
     });
 }
 
 fn harmonic_trap(pool: Res<ComputeTaskPool>, mut query: Query<(&mut Force, &Position)>) {
-    query.par_for_each_mut(&pool, 32, |(mut force, pos)| {
+    query.par_for_each_mut(&pool, BATCH_SIZE, |(mut force, pos)| {
         force.0 = -pos.0;
     });
 }
 
-fn spawn_atoms(mut commands: Commands) {
-    // Add some atoms
-    for _ in 0..PARTICLE_NUMBER {
-        commands.spawn().insert_bundle((
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemLabel)]
+enum SystemLabels {
+    IntegratePosition,
+    IntegrateVelocity,
+    HarmonicTrap,
+}
+
+fn main() {
+    let mut world = World::new();
+    let mut stage = SystemStage::single_threaded();
+    world.insert_resource(Timestep { dt: 1.0 });
+    world.insert_resource(ComputeTaskPool(
+        TaskPoolBuilder::default()
+            .thread_name("ComputeTaskPool".into())
+            .build(),
+    ));
+
+    world.spawn_batch((0..PARTICLE_NUMBER).map(|_| {
+        (
             Position {
                 0: Vector3::new(0.0, 0.0, 0.0),
             },
@@ -72,40 +92,10 @@ fn spawn_atoms(mut commands: Commands) {
                     0: Vector3::new(0.0, 0.0, 0.0),
                 },
             },
-        ));
-    }
-}
+        )
+    }));
 
-fn simple_runner(mut app: App) {
-    println!("Starting simulation.");
-    for _ in 0..STEP_NUMBER {
-        app.update();
-    }
-    println!("Finished!");
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemLabel)]
-enum SystemLabels {
-    IntegratePosition,
-    IntegrateVelocity,
-    HarmonicTrap,
-}
-
-fn main() {
-    let mut pool = DefaultTaskPoolOptions::default();
-    pool.io = bevy::core::TaskPoolThreadAssignmentPolicy {
-        min_threads: 0,
-        max_threads: 0,
-        percent: 0.0,
-    };
-    pool.async_compute = bevy::core::TaskPoolThreadAssignmentPolicy {
-        min_threads: 0,
-        max_threads: 0,
-        percent: 0.0,
-    };
-
-    App::build()
-        .insert_resource(Timestep { dt: 1.0 })
+    stage
         .add_system(
             integrate_position
                 .system()
@@ -122,9 +112,20 @@ fn main() {
                 .system()
                 .label(SystemLabels::IntegrateVelocity)
                 .after(SystemLabels::HarmonicTrap),
-        )
-        .add_startup_system(spawn_atoms.system())
-        .set_runner(simple_runner)
-        .insert_resource(pool)
-        .run();
+        );
+
+    let mut do_run = || {
+        println!("Starting simulation.");
+        let start = std::time::Instant::now();
+        for _ in 0..STEP_NUMBER {
+            stage.run(&mut world);
+        }
+        let dur = std::time::Instant::now() - start;
+        println!("Finished in {:?}", dur);
+        dur
+    };
+
+    let total: Duration = (0..5).map(|_| do_run()).sum();
+    println!("Total time: {:?}", total);
+    println!("Avg: {:?}", total / 5)
 }
