@@ -22,7 +22,7 @@ pub struct Timestep {
     pub dt: f64,
 }
 
-const BATCH_SIZE: usize = PARTICLE_NUMBER as usize / 6;
+const BATCH_SIZE: usize = 2048;//PARTICLE_NUMBER as usize / 6;
 
 fn integrate_position(
     pool: Res<ComputeTaskPool>,
