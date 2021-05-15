@@ -3,7 +3,7 @@
 //! Performs a velocity-verlet integration of particles in a harmonic trap.
 
 extern crate bevy_bench as lib;
-use lib::{PARTICLE_NUMBER,STEP_NUMBER};
+use lib::{PARTICLE_NUMBER, STEP_NUMBER};
 
 extern crate bevy;
 
@@ -84,29 +84,45 @@ fn simple_runner(mut app: App) {
     println!("Finished!");
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemLabel)]
+enum SystemLabels {
+    IntegratePosition,
+    IntegrateVelocity,
+    HarmonicTrap,
+}
+
 fn main() {
     let mut pool = DefaultTaskPoolOptions::default();
-    pool.io = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+    pool.io = bevy::core::TaskPoolThreadAssignmentPolicy {
         min_threads: 0,
         max_threads: 0,
         percent: 0.0,
     };
-    pool.async_compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
+    pool.async_compute = bevy::core::TaskPoolThreadAssignmentPolicy {
         min_threads: 0,
-        max_threads: 12,
-        percent: 1.0,
-    };
-    pool.compute = bevy::core::task_pool_options::TaskPoolThreadAssignmentPolicy {
-        min_threads: 1,
-        max_threads: 1,
-        percent: 0.1,
+        max_threads: 0,
+        percent: 0.0,
     };
 
     App::build()
         .insert_resource(Timestep { dt: 1.0 })
-        .add_system(integrate_position.system())
-        .add_system(harmonic_trap.system())
-        .add_system(integrate_velocity.system())
+        .add_system(
+            integrate_position
+                .system()
+                .label(SystemLabels::IntegratePosition),
+        )
+        .add_system(
+            harmonic_trap
+                .system()
+                .label(SystemLabels::HarmonicTrap)
+                .after(SystemLabels::IntegratePosition),
+        )
+        .add_system(
+            integrate_velocity
+                .system()
+                .label(SystemLabels::IntegrateVelocity)
+                .after(SystemLabels::HarmonicTrap),
+        )
         .add_startup_system(spawn_atoms.system())
         .set_runner(simple_runner)
         .insert_resource(pool)
