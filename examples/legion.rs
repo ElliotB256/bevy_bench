@@ -22,35 +22,38 @@ pub struct Timestep {
     pub dt: f64,
 }
 
-#[system(for_each)]
+use legion::world::SubWorld;
+
+#[system]
 fn integrate_position(
-    vel: &Velocity,
-    mass: &Mass,
-    force: &Force,
-    pos: &mut Position,
-    old_force: &mut OldForce,
+    world: &mut SubWorld,
+    query: &mut Query<(&Velocity, &Mass, &Force, &mut Position, &mut OldForce)>,
     #[resource] timestep: &Timestep,
 ) {
     let dt = timestep.dt;
-    pos.0 = pos.0 + vel.0 * dt + force.0 / (mass.0) / 2.0 * dt * dt;
-    old_force.0 = *force;
+    query.par_for_each_mut(world, |(vel, mass, force, mut pos, mut old_force)| {
+        pos.0 = pos.0 + vel.0 * dt + force.0 / (mass.0) / 2.0 * dt * dt;
+        old_force.0 = *force;
+    });
 }
 
-#[system(for_each)]
+#[system]
 fn integrate_velocity(
-    vel: &mut Velocity,
-    force: &Force,
-    old_force: &OldForce,
-    mass: &Mass,
+    world: &mut SubWorld,
+    query: &mut Query<(&mut Velocity, &Force, &OldForce, &Mass)>,
     #[resource] timestep: &Timestep,
 ) {
     let dt = timestep.dt;
-    vel.0 = vel.0 + (force.0 + old_force.0 .0) / (mass.0) / 2.0 * dt;
+    query.par_for_each_mut(world, |(mut vel, force, old_force, mass)| {
+        vel.0 = vel.0 + (force.0 + old_force.0 .0) / (mass.0) / 2.0 * dt;
+    });
 }
 
-#[system(for_each)]
-fn harmonic_force(force: &mut Force, pos: &Position) {
-    force.0 = -pos.0;
+#[system]
+fn harmonic_force(world: &mut SubWorld, query: &mut Query<(&mut Force, &Position)>) {
+    query.par_for_each_mut(world, |(mut force, pos)| {
+        force.0 = -pos.0;
+    });
 }
 
 fn main() {
